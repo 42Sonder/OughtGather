@@ -15,7 +15,7 @@ This guide provides compact developer instructions, architecture decisions, and 
 
 ## Architecture & Core Rules
 
-- **Flow**: `config.json` → `Fetchers` → `Processors` → `Dedup` → `EPUB Generator` → `SMTP Sender` & `WebDAV Uploader`
+- **Flow**: `config.json` → `Fetchers` → `Processors` → `Dedup` → `EPUB Generator` → optional `SMTP Sender` & `WebDAV Uploader`
 - **Timezone**: All timestamping and datetime calculations must use Beijing Time (UTC+8) via `src/utils/helpers.py:get_now()`.
 - **Fetchers (`src/fetchers/`)**:
   - `MailFetcher`: Uses testmail.app API. `src` supports `"namespace"` or `"namespace.tag"` (dot-split). `metadata` enables tags, limits, and date range filters.
@@ -42,8 +42,9 @@ This guide provides compact developer instructions, architecture decisions, and 
 
 ## Configuration
 
-Required credentials (environment or GitHub Secrets): `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `KINDLE_EMAIL`.
-Optional variables: `CONFIG_JSON` (overrides file), `TESTMAIL_APP_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_API_ENDPOINT`, `WEBDAV_ENABLED`, `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`, `WEBDAV_REMOTE_PATH`.
+Required credentials for the GitHub Actions WebDAV flow (environment or GitHub Secrets): `WEBDAV_USERNAME`, `WEBDAV_PASSWORD`.
+The default workflow targets CSTCloud at `https://data.cstcloud.cn/dav/RSS` and sends `User-Agent: Mozilla/5.0 (compatible; Zotero/8.0) AList`.
+Optional variables: `CONFIG_JSON` (overrides file), `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `KINDLE_EMAIL`, `TESTMAIL_APP_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_API_ENDPOINT`, `WEBDAV_ENABLED`, `WEBDAV_URL`, `WEBDAV_USER_AGENT`, `WEBDAV_REMOTE_PATH`.
 
 ### config.json Schema
 ```json

@@ -23,17 +23,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          
+
           # Fetch the last repository_dispatch run
-          LAST_RUN=$(gh run list --repo ${{ github.repository }} --workflow "${{ github.workflow }}" --event repository_dispatch --json createdAt --limit 1 --jq '.[0].createdAt' 2>/dev/null || echo "")
-          
+          LAST_RUN=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --event repository_dispatch \
+            --json createdAt --limit 1 --jq '.[0].createdAt' \
+            2>/dev/null || echo "")
+
           SHOULD_RUN=$(LAST_RUN="$LAST_RUN" python3 -c "
           import os, sys, datetime
           last_run_str = os.environ.get('LAST_RUN', '')
-          if not last_run_str or last_run_str == 'null' or not last_run_str.strip():
+          if (
+              not last_run_str
+              or last_run_str == 'null'
+              or not last_run_str.strip()
+          ):
               print('true')
               sys.exit(0)
           try:
@@ -48,7 +57,7 @@ jobs:
           except Exception:
               print('true')
           ")
-          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
 
   gather:
     needs: check
@@ -97,7 +106,8 @@ jobs:
 
       - name: Enable unprivileged user namespaces for Chromium sandbox
         run: |
-          if sudo sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+          if sudo sysctl kernel.apparmor_restrict_unprivileged_userns \
+            >/dev/null 2>&1; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
 
@@ -111,12 +121,17 @@ jobs:
           elif [ -f config.json ]; then
             echo "Using config.json from repository"
           else
-            echo "::error::No config found. Set CONFIG_JSON secret or commit config.json to the repo."
+            echo "::error::No config found. Set CONFIG_JSON secret or " \
+              "commit config.json to the repo."
             exit 1
           fi
           # Validate JSON
           python -c "import json; json.load(open('config.json'))" \
-            || { echo "::error::config.json contains invalid JSON. Validate at https://jsonlint.com"; exit 1; }
+            || {
+              echo "::error::config.json contains invalid JSON. " \
+                "Validate at https://jsonlint.com"
+              exit 1
+            }
           echo "✓ config.json is valid"
 
       - name: Cache dedup records
@@ -132,18 +147,15 @@ jobs:
           # 时区设置
           TZ: Asia/Shanghai
 
-          # SMTP 配置（必需）
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          KINDLE_EMAIL: ${{ secrets.KINDLE_EMAIL }}
+          # 本流程只生成 EPUB 并上传 WebDAV，不需要 Kindle SMTP 配置
+          # 如以后需要同时发送 Kindle，再添加 SMTP_* 和 KINDLE_EMAIL Secrets。
 
-          # WebDAV 配置
-          WEBDAV_ENABLED: ${{ secrets.WEBDAV_ENABLED }}
+          # CSTCloud WebDAV 配置
+          WEBDAV_ENABLED: 'true'
+          WEBDAV_URL: 'https://data.cstcloud.cn/dav'
+          WEBDAV_REMOTE_PATH: 'RSS'
+          WEBDAV_USER_AGENT: 'Mozilla/5.0 (compatible; Zotero/8.0) AList'
           WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
-          WEBDAV_REMOTE_PATH: ${{ secrets.WEBDAV_REMOTE_PATH }}
-          WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
           WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
 
           # EPUB localization and Bing wallpaper market (optional)

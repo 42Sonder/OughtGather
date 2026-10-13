@@ -12,12 +12,12 @@ import re
 import time
 import concurrent.futures
 from html import unescape
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import load_config, Config, ContentSource
+from src.config import load_config, ContentSource, is_smtp_configured
 from src.fetchers import BaseFetcher, FetchResult, get_fetcher_class
 from src.fetchers.base import Article
 from src.processors.content_processor import ContentProcessor
@@ -80,7 +80,7 @@ def has_valid_content(article: Article) -> bool:
     return False
 
 
-def _close_fetcher(fetcher: BaseFetcher, source: ContentSource, logger, context: str) -> None:
+def _close_fetcher(fetcher: Optional[BaseFetcher], source: ContentSource, logger, context: str) -> None:
     """Close a fetcher without hiding a cleanup failure from the task log."""
     if fetcher is None:
         return
@@ -109,7 +109,7 @@ def _fresh_start_task(
         elif fetcher.supports_two_phase:
             candidates = fetcher.fetch_list()
             if candidates:
-                urls = [c.get("url") for c in candidates if c.get("url")]
+                urls = [c["url"] for c in candidates if c.get("url")]
                 tracker.stage_source_snapshot(tracker.make_source_key(source), urls)
                 logger.info(
                     f"[Fresh Start 两阶段] {source.type} | {truncate_url(source.src, 40)}: "
@@ -156,7 +156,7 @@ def _fetch_source_task(
                 source_key = tracker.make_source_key(source)
                 if fetcher.dedup_enabled and candidates:
                     tracker.stage_source_snapshot(
-                        source_key, [c.get("url") for c in candidates]
+                        source_key, [c["url"] for c in candidates if c.get("url")]
                     )
                     snapshot_staged = True
 
@@ -378,18 +378,22 @@ def main(argv=None):
 
             # 5. 发送邮件与 WebDAV 上传
             log_stage(5, 5, "推送分发与保存记录")
-            logger.info("正在发送 EPUB 至 Kindle 邮箱...")
-            try:
-                sender = SMTPSender()
-                subject = config.title.get_plain_text()
-                if not sender.send_epub(epub_path, subject):
-                    logger.error("发送邮件失败: SMTP sender returned False")
-                    error_log.append("Email sending failed: sender returned False")
-            except Exception as e:
-                logger.exception(f"发送邮件失败: {e}")
-                error_log.append(f"Email sending failed: {str(e)}")
+            if is_smtp_configured():
+                logger.info("正在发送 EPUB 至 Kindle 邮箱...")
+                try:
+                    sender = SMTPSender()
+                    subject = config.title.get_plain_text()
+                    if not sender.send_epub(epub_path, subject):
+                        logger.error("发送邮件失败: SMTP sender returned False")
+                        error_log.append("Email sending failed: sender returned False")
+                except Exception as e:
+                    logger.exception(f"发送邮件失败: {e}")
+                    error_log.append(f"Email sending failed: {str(e)}")
+            else:
+                logger.info("未配置完整 SMTP，跳过 Kindle 邮件发送。")
 
             logger.info("正在上传 EPUB 至 WebDAV...")
+            webdav_required = os.getenv("WEBDAV_ENABLED", "false").lower() == "true"
             try:
                 from src.uploader.webdav_uploader import WebDavUploader
                 uploader = WebDavUploader()
@@ -399,9 +403,13 @@ def main(argv=None):
                 elif getattr(getattr(uploader, "config", None), "enabled", False):
                     logger.error("WebDAV 上传失败: uploader returned False")
                     error_log.append("WebDAV upload failed: uploader returned False")
+                    if webdav_required:
+                        raise RuntimeError("WebDAV upload failed")
             except Exception as e:
                 logger.exception(f"WebDAV 上传失败: {e}")
                 error_log.append(f"WebDAV upload failed: {str(e)}")
+                if webdav_required:
+                    raise
 
         # 始终保存去重数据库（确保 limit 截断标记以及新增抓取的记录得到持久化）
         logger.info("保存去重数据库...")

@@ -29,6 +29,7 @@ Ought Gather 是一个 Python 自动化信息聚合工具。它从 RSS、网页�
 - 内置四类内容源：`rss`、`web`、`mail`、`trending`
 - 可以用插件的形式添加自定义内容源
 - 使用 GitHub actions ，无需自己服务器
+- 可自动将生成的 EPUB 上传到 CSTCloud WebDAV（带兼容性 User-Agent）
 - 自动 Emoji 渲染：将文档中的 Emoji 动态渲染为黑白 PNG 图片，确保在 Kindle 等各类水墨屏阅读器上完美显示
 - 支持按源设置优先级、链接保留、全文抓取、HTML 过滤和标题关键词删除
 - 生成 EPUB 3.0 文件，包含封面、目录、正文和推送汇总章节
@@ -42,7 +43,8 @@ Ought Gather 是一个 Python 自动化信息聚合工具。它从 RSS、网页�
 
 - Python 3.11+
 - 依赖见 `requirements.txt`
-- Kindle 推送需要可用的 SMTP 邮箱
+- WebDAV 上传需要可用的 WebDAV 账号
+- Kindle 邮件推送是可选功能；本项目默认流程可只生成并上传 EPUB
 - `各内容源` 需要各自配置 `***_API_KEY`
 
 ---
@@ -57,11 +59,22 @@ Ought Gather 是一个 Python 自动化信息聚合工具。它从 RSS、网页�
 
 在 GitHub 页面点击 `Fork`，把项目复制到自己的账号下。
 
-**2. 配置内容源及环境变量**
+**2. 配置内容源及 WebDAV Secrets**
 
-[可视化配置内容源](https://liusonwood.github.io/OughtGather/)
+先用[可视化配置编辑器](https://liusonwood.github.io/OughtGather/)制作内容源配置，
+然后在仓库的 `Settings -> Secrets and variables -> Actions` 中添加：
 
-见下方 [Secrets 配置](#secrets-配置) 一节。
+| Secret | 填写内容 |
+| --- | --- |
+| `CONFIG_JSON` | 配置编辑器导出的完整 JSON |
+| `WEBDAV_USERNAME` | CSTCloud WebDAV 用户名 |
+| `WEBDAV_PASSWORD` | CSTCloud WebDAV 密码 |
+
+本仓库的工作流已经固定使用以下 CSTCloud 参数，无需把它们添加为 Secret：
+
+- 地址：`https://data.cstcloud.cn/dav`
+- 目录：`RSS`
+- User-Agent：`Mozilla/5.0 (compatible; Zotero/8.0) AList`
 
 **3. 手动触发**
 
@@ -71,9 +84,10 @@ Actions -> Daily Gather -> Run workflow
 
 成功运行后：
 
-- `output/` 中生成 EPUB，并作为 artifact 上传（保留 7 天）
-- EPUB 通过邮件发送到 `KINDLE_EMAIL`
-- `data/fetched_urls.txt` 在actions缓存，用于下次去重
+- `output/` 中生成 EPUB，并作为 artifact 上传（手动运行时保留 7 天）
+- EPUB 自动上传到 CSTCloud 的 `RSS` 目录
+- `data/fetched_urls.txt` 在 Actions 缓存，用于下次去重
+- 未配置 SMTP 时会自动跳过 Kindle 邮件发送，不影响 WebDAV 上传
 
 >注：`Fresh Start Deduplication` 用于去重文件生成，只抓取不推送。用在第一次抓取前避免第一次定时运行推送太多文章；或者调试时清空去重文件。
 
@@ -142,10 +156,10 @@ on:
 | 现象 | 常见原因 |
 | --- | --- |
 | 配置准备步骤失败 | `CONFIG_JSON` 不是合法 JSON |
-| SMTP 登录失败 | 账号、密码、端口或授权码错误 |
-| 邮件发出但 Kindle 未收到 | 发件邮箱未加入 Kindle 认可发件人列表 |
-| `Send to Kindle` 网页端显示失败 | EPUB生成兼容性问题，请提交反馈报告问题 |
-| 没有生成 EPUB | 内容源无新文章 |
+| WebDAV 上传失败 | 检查 `WEBDAV_USERNAME`、`WEBDAV_PASSWORD` 是否正确 |
+| WebDAV 找不到文件 | 检查 CSTCloud 的 `RSS` 目录和任务日志 |
+| `Send to Kindle` 相关错误 | 只有配置完整 SMTP 时才会启用 Kindle 邮件发送 |
+| 没有生成 EPUB | 内容源无新文章，或内容源请求失败 |
 </details>
 
 ---
@@ -154,23 +168,27 @@ on:
 
 在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions` 中配置，本地开发时通过环境变量设置。
 
-### 必要变量
+### GitHub Actions 必要 Secrets
 
 | Secret / 环境变量 | 说明 |
 | --- | --- |
-| `CONFIG_JSON` | 完整的 `config.json` 字符串；优先级高于项目根目录的 `config.json` 文件。推荐在 GitHub Actions 中使用，可避免将私有内容源写入仓库。**项目提供了一个可视化 HTML [配置编辑器](https://liusonwood.github.io/OughtGather/)。** |
-| `EPUB_LANGUAGE` | 可选 EPUB/Bing locale，例如 `en-US` 或 `zh-CN`；未设置或无效时使用英文 `en-US` |
-| `KINDLE_EMAIL` | Kindle 接收邮箱（`@kindle.com`） |
-| `SMTP_HOST` | 发件邮箱 SMTP 服务器地址，如 `smtp.gmail.com` |
-| `SMTP_PASSWORD` | 发件邮箱密码或应用授权码 |
-| `SMTP_PORT` | 发件邮箱 SMTP 端口；`465` 使用 SSL，`587` 使用 STARTTLS |
-| `SMTP_USERNAME` | 发件邮箱账号 |
-| `WEBDAV_ENABLED` | 设置为 `true` 以启用 WebDAV 上传 |
-| `WEBDAV_PASSWORD` | WebDAV 密码 |
-| `WEBDAV_REMOTE_PATH` | 远程存储路径，默认 `/` |
-| `WEBDAV_URL` | WebDAV 服务器地址 |
-| `WEBDAV_USERNAME` | WebDAV 用户名 |
+| `CONFIG_JSON` | 完整的 `config.json` 字符串；优先级高于仓库中的 `config.json`。推荐使用，可避免公开私有内容源。 |
+| `WEBDAV_USERNAME` | CSTCloud WebDAV 用户名 |
+| `WEBDAV_PASSWORD` | CSTCloud WebDAV 密码 |
 
+工作流已固定使用：`WEBDAV_ENABLED=true`、地址 `https://data.cstcloud.cn/dav`、目录 `RSS`，以及 User-Agent `Mozilla/5.0 (compatible; Zotero/8.0) AList`。
+
+### 可选变量
+
+| Secret / 环境变量 | 说明 |
+| --- | --- |
+| `EPUB_LANGUAGE` | EPUB/Bing locale，例如 `en-US` 或 `zh-CN` |
+| `KINDLE_EMAIL` | Kindle 接收邮箱；只有 SMTP 配置完整时使用 |
+| `SMTP_HOST` | 发件邮箱 SMTP 服务器地址 |
+| `SMTP_PASSWORD` | 发件邮箱密码或应用授权码 |
+| `SMTP_PORT` | SMTP 端口；`465` 使用 SSL，`587` 使用 STARTTLS |
+| `SMTP_USERNAME` | 发件邮箱账号 |
+| `WEBDAV_USER_AGENT` | 覆盖默认 User-Agent；通常无需设置 |
 
 ### Fetcher 自定义变量
 

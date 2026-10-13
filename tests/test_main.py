@@ -1,5 +1,5 @@
-import pytest
-from unittest.mock import MagicMock, patch, call
+import pytest  # type: ignore[reportMissingImports]
+from unittest.mock import MagicMock, patch
 from src.main import main, has_valid_content, process_results
 from src.config import ContentSource
 from src.fetchers.base import Article, FetchResult
@@ -423,9 +423,10 @@ def test_main_success(
     mock_generator.return_value = mock_epub_generator
     
     # Run
-    with patch("src.uploader.webdav_uploader.WebDavUploader") as mock_webdav:
-        main()
-    
+    with patch("src.uploader.webdav_uploader.WebDavUploader"):
+        with patch("src.main.is_smtp_configured", return_value=False):
+            main()
+
     # Assert
     mock_load_config.assert_called_once()
     mock_has_new.assert_called_once()
@@ -433,7 +434,8 @@ def test_main_success(
     mock_epub_generator.generate.assert_called_once_with(
         mock_process.return_value, [], start_time=12345678.9
     )
-    mock_sender.assert_called_once()
+    # 未配置 SMTP 时，EPUB 仍应继续走 WebDAV 分发，不尝试发 Kindle 邮件。
+    mock_sender.assert_not_called()
 
 
 @patch("src.main.load_config")
@@ -501,7 +503,7 @@ def test_main_raw_counts_isolation(
     mock_has_new.return_value = True
     
     # Run
-    with patch("src.uploader.webdav_uploader.WebDavUploader") as mock_webdav:
+    with patch("src.uploader.webdav_uploader.WebDavUploader"):
         main()
         
     # Assert

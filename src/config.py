@@ -66,7 +66,7 @@ class ContentSource:
         elif not isinstance(self.metadata, dict):
             raise ValueError("metadata must be an object")
 
-        import src.fetchers
+        import src.fetchers  # noqa: F401  # 确保内置 fetcher 完成自动注册
         from src.fetchers.base import _registry
 
         if self.type not in _registry:
@@ -104,6 +104,7 @@ class WebDavConfig:
     username: Optional[str] = None
     password: Optional[str] = None
     remote_path: str = "/"
+    user_agent: str = "Mozilla/5.0 (compatible; Zotero/8.0) AList"
 
 
 @dataclass
@@ -144,8 +145,12 @@ def load_config(config_path: str = "config.json") -> Config:
                 f"Please create config.json or set CONFIG_JSON environment variable"
             )
 
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config_data = json.load(f)
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            # 保持原始异常类型，便于调用方区分文件不存在和 JSON 格式错误。
+            raise
 
     # 验证和解析配置
     return _parse_config(config_data)
@@ -252,14 +257,36 @@ def get_secret(secret_name: str, required: bool = True) -> Optional[str]:
     return value
 
 
-def get_smtp_config() -> Dict[str, str]:
+def is_smtp_configured() -> bool:
+    """判断是否提供了完整 SMTP 配置。
+
+    SMTP 是可选分发方式；未完整配置时不应阻止 EPUB 生成或 WebDAV 上传。
+    """
+    return all(os.getenv(name) for name in (
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "KINDLE_EMAIL",
+    ))
+
+
+def get_smtp_config() -> Dict[str, Any]:
     """获取 SMTP 配置"""
+    host = get_secret("SMTP_HOST")
+    port = get_secret("SMTP_PORT")
+    username = get_secret("SMTP_USERNAME")
+    password = get_secret("SMTP_PASSWORD")
+    kindle_email = get_secret("KINDLE_EMAIL")
+    assert host is not None and port is not None
+    assert username is not None and password is not None
+    assert kindle_email is not None
     return {
-        "host": get_secret("SMTP_HOST"),
-        "port": int(get_secret("SMTP_PORT")),
-        "username": get_secret("SMTP_USERNAME"),
-        "password": get_secret("SMTP_PASSWORD"),
-        "kindle_email": get_secret("KINDLE_EMAIL")
+        "host": host,
+        "port": int(port),
+        "username": username,
+        "password": password,
+        "kindle_email": kindle_email,
     }
 
 
@@ -274,5 +301,9 @@ def get_webdav_config() -> Optional[WebDavConfig]:
         url=get_secret("WEBDAV_URL"),
         username=get_secret("WEBDAV_USERNAME"),
         password=get_secret("WEBDAV_PASSWORD"),
-        remote_path=os.getenv("WEBDAV_REMOTE_PATH") or "/"
+        remote_path=os.getenv("WEBDAV_REMOTE_PATH") or "/",
+        user_agent=os.getenv(
+            "WEBDAV_USER_AGENT",
+            "Mozilla/5.0 (compatible; Zotero/8.0) AList",
+        ),
     )
