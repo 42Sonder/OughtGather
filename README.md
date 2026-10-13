@@ -168,13 +168,36 @@ on:
 
 在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions` 中配置，本地开发时通过环境变量设置。
 
-### GitHub Actions 必要 Secrets
+### 必要变量
 
 | Secret / 环境变量 | 说明 |
 | --- | --- |
-| `CONFIG_JSON` | 完整的 `config.json` 字符串；优先级高于仓库中的 `config.json`。推荐使用，可避免公开私有内容源。 |
-| `WEBDAV_USERNAME` | CSTCloud WebDAV 用户名 |
-| `WEBDAV_PASSWORD` | CSTCloud WebDAV 密码 |
+| `CONFIG_JSON` | 完整的 `config.json` 字符串；优先级高于项目根目录的 `config.json` 文件。推荐在 GitHub Actions 中使用，可避免将私有内容源写入仓库。**项目提供了一个可视化 HTML [配置编辑器](https://liusonwood.github.io/OughtGather/)。** |
+| `EPUB_LANGUAGE` | 可选 EPUB/Bing locale，例如 `en-US` 或 `zh-CN`；未设置或无效时使用英文 `en-US` |
+| `KINDLE_EMAIL` | Kindle 接收邮箱（`@kindle.com`） |
+| `SMTP_HOST` | 发件邮箱 SMTP 服务器地址，如 `smtp.gmail.com` |
+| `SMTP_PASSWORD` | 发件邮箱密码或应用授权码 |
+| `SMTP_PORT` | 发件邮箱 SMTP 端口；`465` 使用 SSL，`587` 使用 STARTTLS |
+| `SMTP_USERNAME` | 发件邮箱账号 |
+| `WEBDAV_ENABLED` | 设置为 `true` 以启用 WebDAV 上传 |
+| `WEBDAV_PASSWORD` | WebDAV 密码 |
+| `WEBDAV_REMOTE_PATH` | 远程存储路径，默认 `/` |
+| `WEBDAV_URL` | WebDAV 服务器地址 |
+| `WEBDAV_USERNAME` | WebDAV 用户名 |
+
+
+### Fetcher 自定义变量
+
+| Secret / 环境变量 | 说明 |
+| --- | --- |
+| `OPENROUTER_API_ENDPOINT` | 自定义 OpenRouter 兼容接口，默认 `https://openrouter.ai/api/v1/chat/completions`。 |
+| `OPENROUTER_API_KEY` | OpenRouter API 密钥，用于调用 LLM 生成热点分析。 |
+| `OPENROUTER_MODEL` | 使用的 LLM 模型名称。 |
+| `QWEATHER_HOST` | 和风天气 API 主机地址。 |
+| `QWEATHER_KEY` | 和风天气 API 密钥，用于获取天气数据。 |
+| `RAINDROPIO_API_KEY` | Raindrop.io 的 API 访问密钥。 |
+| `TAVILY_API_KEY` | Tavily API 密钥，用于搜索热点信息。 |
+| `TESTMAIL_APP_API_KEY` | 从 testmail.app 获取的 API Key，用于邮件抓取。 |
 
 工作流已固定使用：`WEBDAV_ENABLED=true`、地址 `https://data.cstcloud.cn/dav`、目录 `RSS`，以及 User-Agent `Mozilla/5.0 (compatible; Zotero/8.0) AList`。
 
