@@ -43,12 +43,15 @@ def test_webdav_uploader_cstcloud_upload(mock_request, mock_get_config, tmp_path
     assert put_call.kwargs["headers"]["User-Agent"] == (
         "Mozilla/5.0 (compatible; Zotero/8.0) AList"
     )
+    assert put_call.kwargs["timeout"].write == 300.0
+    assert put_call.kwargs["timeout"].connect == 30.0
 
     assert move_call.args[0] == "MOVE"
     assert move_call.kwargs["headers"]["User-Agent"] == (
         "Mozilla/5.0 (compatible; Zotero/8.0) AList"
     )
     assert move_call.kwargs["headers"]["Overwrite"] == "T"
+    assert move_call.kwargs["timeout"].write == 30.0
     assert move_call.kwargs["headers"]["Destination"].endswith(
         "/RSS/%E6%AF%8F%E6%97%A5%E6%96%B0%E9%97%BB.epub"
     )

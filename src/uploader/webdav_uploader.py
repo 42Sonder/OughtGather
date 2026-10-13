@@ -25,6 +25,8 @@ class WebDavUploader:
     """
 
     MAX_ATTEMPTS = 3
+    CONTROL_TIMEOUT_SECONDS = 30.0
+    UPLOAD_WRITE_TIMEOUT_SECONDS = 300.0
 
     def __init__(self):
         self.logger = get_logger()
@@ -98,13 +100,27 @@ class WebDavUploader:
         last_error: Optional[Exception] = None
         for attempt in range(1, self.MAX_ATTEMPTS + 1):
             try:
+                is_upload = method.upper() == "PUT"
+                timeout = httpx.Timeout(
+                    self.UPLOAD_WRITE_TIMEOUT_SECONDS
+                    if is_upload
+                    else self.CONTROL_TIMEOUT_SECONDS,
+                    connect=self.CONTROL_TIMEOUT_SECONDS,
+                    read=self.CONTROL_TIMEOUT_SECONDS,
+                    write=(
+                        self.UPLOAD_WRITE_TIMEOUT_SECONDS
+                        if is_upload
+                        else self.CONTROL_TIMEOUT_SECONDS
+                    ),
+                    pool=self.CONTROL_TIMEOUT_SECONDS,
+                )
                 response = httpx.request(
                     method,
                     url,
                     content=content,
                     auth=self._auth(),
                     headers=headers,
-                    timeout=30.0,
+                    timeout=timeout,
                 )
                 response.raise_for_status()
                 return response
